@@ -323,7 +323,10 @@ def _rewrite_pointer_event(data: bytes, offset: int) -> bytes:
     mask = data[offset + 1]
     x = struct.unpack_from(">H", data, offset + 2)[0]
     y = struct.unpack_from(">H", data, offset + 4)[0]
-    # Expand mask from u8 to u16, add zero scroll deltas
+    # Expand mask from u8 to u16.  Scroll deltas (sx, sy) are zero because
+    # noVNC encodes scroll as button-mask bits (3=up, 4=down, 5=left, 6=right)
+    # which pass through in the mask.  KasmVNC accepts mask-bit scroll on its
+    # extended 11-byte format, so explicit deltas are unnecessary.
     return struct.pack(">BHHHhh", 5, mask, x, y, 0, 0)
 
 

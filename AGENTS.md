@@ -55,10 +55,10 @@ Self-hosted browser profile manager (multilogin/gologin alternative). Each profi
 ### Backend (Python)
 
 ```bash
-cd backend
+cd CloakBrowser-Manager
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8080
+pip install -r backend/requirements.txt
+uvicorn backend.main:app --reload --port 8080
 ```
 
 ### Frontend (TypeScript)

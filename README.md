@@ -80,10 +80,10 @@ Each CloakBrowser profile generates a completely different device identity. To t
 ### Backend
 
 ```bash
-cd backend
+cd CloakBrowser-Manager
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8080
+pip install -r backend/requirements.txt
+uvicorn backend.main:app --reload --port 8080
 ```
 
 ### Frontend

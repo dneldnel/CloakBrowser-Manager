@@ -23,21 +23,25 @@ Free, self-hosted alternative to Multilogin, GoLogin, and AdsPower.
 <img src="https://i.imgur.com/XFYn1qY.png" width="800" alt="CloakBrowser Manager — Profile Settings">
 </p>
 
-Each profile is an isolated CloakBrowser instance with its own fingerprint, proxy, cookies, and session data. Profiles persist across restarts. Everything runs in one Docker container.
-
-```bash
-docker run -p 8080:8080 -v cloakprofiles:/data cloakhq/cloakbrowser-manager
-```
-
-Or build from source:
+Each profile is an isolated local CloakBrowser instance with its own fingerprint, proxy, cookies, and session data. Profiles persist across restarts.
 
 ```bash
 git clone https://github.com/CloakHQ/CloakBrowser-Manager.git
 cd CloakBrowser-Manager
-docker compose up --build
+python -m venv .venv && source .venv/bin/activate
+pip install -r backend/requirements.txt
+uvicorn backend.main:app --reload --port 8080
 ```
 
-Open [http://localhost:8080](http://localhost:8080) in your browser. Create a profile. Click Launch. Done.
+In another terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open the Vite URL in your browser. Create a profile. Click Launch. CloakBrowser opens as a local desktop window.
 
 > **Early alpha** — this project is under active development. Expect bugs. If you find one, please [open an issue](https://github.com/CloakHQ/CloakBrowser-Manager/issues).
 
@@ -58,10 +62,9 @@ Each CloakBrowser profile generates a completely different device identity. To t
 
 - **Profile management** — create, edit, delete browser profiles with unique fingerprints
 - **Per-profile settings** — fingerprint seed, proxy, timezone, locale, user agent, screen size, platform
-- **One-click launch/stop** — each profile runs as an isolated CloakBrowser instance
+- **One-click launch/stop** — each profile runs as an isolated local CloakBrowser window
 - **Session persistence** — cookies, localStorage, and cache survive browser restarts
-- **In-browser viewing** — interact with launched browsers via noVNC, directly in the web GUI
-- **Playwright/Puppeteer API** — connect to any running profile programmatically via CDP, while still watching it live in the browser
+- **Playwright/Puppeteer API** — connect to any running profile programmatically via CDP
 - **Optional authentication** — protect the web UI and API with a single token, or run wide open locally
 - **Powered by CloakBrowser** — 32 source-level C++ patches, passes Cloudflare Turnstile, 0.9 reCAPTCHA v3 score
 
@@ -69,7 +72,6 @@ Each CloakBrowser profile generates a completely different device identity. To t
 
 - **Backend**: FastAPI (Python)
 - **Frontend**: React + Tailwind CSS
-- **Browser viewer**: noVNC (WebSocket-based VNC client)
 - **Database**: SQLite
 - **Browser engine**: [CloakBrowser](https://github.com/CloakHQ/CloakBrowser) (stealth Chromium binary)
 
@@ -98,27 +100,29 @@ npm run dev
 docker compose up --build
 ```
 
+Docker is retained for API/build packaging. It does not open local desktop browser windows by default.
+
 ## Requirements
 
-- Docker (20.10+)
+- Python 3.12+
+- Node.js 20+
 - ~2 GB disk (image + binary)
 - ~512 MB RAM per running profile
 
 ## Updating
 
-Pull the latest image and restart:
+Pull the latest source and restart the local backend/frontend:
 
 ```bash
-docker pull cloakhq/cloakbrowser-manager
-docker stop <container-id>
-docker run -p 8080:8080 -v cloakprofiles:/data cloakhq/cloakbrowser-manager
+git pull
+uvicorn backend.main:app --reload --port 8080
 ```
 
-Your profiles and session data are stored in the `cloakprofiles` volume and persist across updates.
+Your profiles and session data are stored in `~/.cloakbrowser-manager` by default.
 
 ## Automation API
 
-Every running profile exposes a CDP (Chrome DevTools Protocol) endpoint. Connect Playwright or Puppeteer to automate a profile while watching it live in the browser.
+Every running profile exposes a CDP (Chrome DevTools Protocol) endpoint. Connect Playwright or Puppeteer to automate a local CloakBrowser window.
 
 ```python
 from playwright.async_api import async_playwright
@@ -141,7 +145,7 @@ const page = browser.contexts()[0].pages()[0];
 await page.goto("https://example.com");
 ```
 
-The CDP URL is available in the toolbar (code icon) when a profile is running. The same browser session is accessible both visually through VNC and programmatically through the API.
+The CDP URL is available when a profile is running. The same local browser window is accessible programmatically through the API.
 
 ## Remote Access
 
@@ -172,7 +176,7 @@ When `AUTH_TOKEN` is set:
 
 - The web UI shows a login page. Enter the token to unlock.
 - API consumers pass the token via `Authorization: Bearer <token>` header.
-- VNC WebSocket connections are authenticated via the login cookie.
+- CDP WebSocket connections are authenticated via the login cookie.
 - The `/api/status` endpoint remains unauthenticated (for Docker healthcheck).
 
 > **Note**: The auth token is transmitted in cleartext over HTTP. If you expose the Manager to the internet, put it behind a reverse proxy with HTTPS (Caddy, nginx, Traefik).

@@ -1,13 +1,19 @@
 # Stage 1: Build React frontend
 FROM node:20-slim AS frontend-builder
+ARG NPM_REGISTRY
 WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm install
+RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi && npm install
 COPY frontend/ ./
-RUN npm run build
+RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi && npm run build
 
 # Stage 2: Production image
 FROM python:3.12-slim
+
+ARG APT_MIRROR
+RUN if [ -n "$APT_MIRROR" ]; then \
+      sed -i "s|http://deb.debian.org|${APT_MIRROR}|g; s|http://security.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list 2>/dev/null || true; \
+    fi
 
 # Chromium system deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -16,34 +22,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 \
     libcairo2 libasound2 libx11-xcb1 libfontconfig1 libx11-6 \
     libxcb1 libxext6 libxshmfence1 \
-    libglib2.0-0 libgtk-3-0 libpangocairo-1.0-0 libcairo-gobject2 \
-    libgdk-pixbuf-2.0-0 libxss1 libxtst6 fonts-liberation \
-    libgl1-mesa-dri libegl-mesa0 \
-    procps wget ca-certificates xclip \
-    && rm -rf /var/lib/apt/lists/*
+	    libglib2.0-0 libgtk-3-0 libpangocairo-1.0-0 libcairo-gobject2 \
+	    libgdk-pixbuf-2.0-0 libxss1 libxtst6 fonts-liberation \
+	    libgl1-mesa-dri libegl-mesa0 \
+	    procps ca-certificates \
+	    && rm -rf /var/lib/apt/lists/*
 
 # Playwright system deps (matches test-infra)
 RUN pip install --no-cache-dir playwright && playwright install-deps chromium 2>/dev/null || true && pip uninstall -y playwright
 
 # Windows core fonts (Arial, Times New Roman, Verdana, etc.)
-RUN echo "deb http://deb.debian.org/debian trixie contrib" >> /etc/apt/sources.list.d/contrib.list \
+RUN echo "deb ${APT_MIRROR:-http://deb.debian.org}/debian trixie contrib" >> /etc/apt/sources.list.d/contrib.list \
     && echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections \
     && apt-get update && apt-get install -y --no-install-recommends ttf-mscorefonts-installer \
     && fc-cache -f \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install KasmVNC (auto-selects amd64 or arm64 based on build platform)
-ARG TARGETARCH
-RUN wget -q https://github.com/kasmtech/KasmVNC/releases/download/v1.3.3/kasmvncserver_bookworm_1.3.3_${TARGETARCH}.deb \
-    && apt-get update && apt-get install -y -f ./kasmvncserver_bookworm_1.3.3_${TARGETARCH}.deb \
-    && rm kasmvncserver_bookworm_1.3.3_${TARGETARCH}.deb \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Python deps
 COPY backend/requirements.txt /app/backend/
-RUN pip install --no-cache-dir -r /app/backend/requirements.txt
+ARG PIP_INDEX_URL
+RUN if [ -n "$PIP_INDEX_URL" ]; then export PIP_EXTRA_INDEX_URL="$PIP_INDEX_URL"; fi && pip install --no-cache-dir -r /app/backend/requirements.txt
 
 # Backend code
 COPY backend/ /app/backend/
@@ -55,6 +55,7 @@ COPY --from=frontend-builder /build/dist /app/frontend/dist
 RUN python -c "from cloakbrowser.download import ensure_binary; ensure_binary()"
 
 EXPOSE 8080
+ENV DATA_DIR=/data
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/status')" || exit 1

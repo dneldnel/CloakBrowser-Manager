@@ -1,9 +1,17 @@
 services:
   manager:
-    build: .
+    build:
+      context: .
+      args:
+        NPM_REGISTRY: https://registry.npmmirror.com
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        APT_MIRROR: https://mirrors.tuna.tsinghua.edu.cn
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
       - ~/.cloakbrowser-manager:/data
+      - /Volumes/jd/extensions:/extensions:ro
+      - /Volumes/jd/projects/videolingo/tools/videolingo-side-panel-extension:/ext-videolingo:ro
+      - /Volumes/jd/projects/videolingo:/Volumes/jd/projects/videolingo:ro
     environment:
       - AUTH_TOKEN=${AUTH_TOKEN:-}

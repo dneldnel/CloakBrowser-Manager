@@ -3,17 +3,21 @@
 from __future__ import annotations
 
 import json
+import asyncio
 from pathlib import Path
 
 import pytest
 
 import socket
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from backend.browser_manager import (
     BASE_CDP_PORT,
     CDP_PORT_RANGE,
     _init_profile_defaults,
     _normalize_proxy,
+    _split_extension_launch_args,
+    _validate_extension_paths,
     _validate_proxy,
     BrowserManager,
 )
@@ -98,7 +102,6 @@ def test_build_args_always_includes_base():
     args = _mgr._build_fingerprint_args({})
     assert "--disable-infobars" in args
     assert "--test-type" in args
-    assert "--use-angle=swiftshader" in args
 
 
 def test_build_args_seed():
@@ -138,8 +141,39 @@ def test_build_args_screen():
 
 def test_build_args_empty_profile():
     args = _mgr._build_fingerprint_args({})
-    # Only the 3 base args
-    assert len(args) == 3
+    # Only the 2 base args
+    assert len(args) == 2
+
+
+def test_launch_starts_local_window_without_display_env(tmp_path: Path):
+    mgr = BrowserManager()
+    context = MagicMock()
+    context.on = MagicMock()
+
+    profile = {
+        "id": "abc",
+        "user_data_dir": str(tmp_path / "profile"),
+        "headless": False,
+        "screen_width": 1280,
+        "screen_height": 720,
+        "launch_args": [],
+    }
+
+    with patch(
+        "backend.browser_manager.launch_persistent_context_async",
+        new=AsyncMock(return_value=context),
+    ) as launch:
+        running = asyncio.run(mgr.launch(profile))
+
+    assert running.profile_id == "abc"
+    kwargs = launch.await_args.kwargs
+    assert "env" not in kwargs
+    assert kwargs["headless"] is False
+    assert kwargs["viewport"] == {"width": 1280, "height": 720}
+    assert mgr.get_status("abc") == {
+        "status": "running",
+        "cdp_url": "/api/profiles/abc/cdp",
+    }
 
 
 # ── launch_args appended to extra_args ────────────────────────────────────────
@@ -174,6 +208,40 @@ def test_launch_args_none_no_effect():
     base_count = len(args)
     args += profile.get("launch_args") or []
     assert len(args) == base_count
+
+
+def test_split_extension_launch_args():
+    args, extension_paths = _split_extension_launch_args([
+        "--load-extension=/ext-a,/ext-b",
+        "--disable-extensions=false",
+        "--disable-features=Foo",
+    ])
+    assert args == ["--disable-features=Foo"]
+    assert extension_paths == ["/ext-a", "/ext-b"]
+
+
+def test_split_extension_launch_args_requires_path():
+    with pytest.raises(ValueError, match="requires a path"):
+        _split_extension_launch_args(["--load-extension="])
+
+
+def test_validate_extension_paths_requires_directory(tmp_path: Path):
+    with pytest.raises(ValueError, match="not a directory"):
+        _validate_extension_paths([str(tmp_path / "missing")])
+
+
+def test_validate_extension_paths_requires_manifest(tmp_path: Path):
+    ext_dir = tmp_path / "ext"
+    ext_dir.mkdir()
+    with pytest.raises(ValueError, match="manifest not found"):
+        _validate_extension_paths([str(ext_dir)])
+
+
+def test_validate_extension_paths_accepts_manifest(tmp_path: Path):
+    ext_dir = tmp_path / "ext"
+    ext_dir.mkdir()
+    (ext_dir / "manifest.json").write_text("{}")
+    _validate_extension_paths([str(ext_dir)])
 
 
 # ── _allocate_cdp_port ───────────────────────────────────────────────────────

@@ -101,15 +101,12 @@ class ProfileResponse(BaseModel):
     updated_at: str
     tags: list[TagResponse] = []
     status: str = "stopped"  # "running" | "stopped"
-    vnc_ws_port: int | None = None
     cdp_url: str | None = None
 
 
 class LaunchResponse(BaseModel):
     profile_id: str
     status: str = "running"
-    vnc_ws_port: int
-    display: str
     cdp_url: str | None = None
 
 
@@ -121,13 +118,7 @@ class StatusResponse(BaseModel):
 
 class ProfileStatusResponse(BaseModel):
     status: str  # "running" | "stopped"
-    vnc_ws_port: int | None = None
-    display: str | None = None
     cdp_url: str | None = None
-
-
-class ClipboardRequest(BaseModel):
-    text: str = Field(max_length=1_048_576)  # 1MB max
 
 
 class LoginRequest(BaseModel):

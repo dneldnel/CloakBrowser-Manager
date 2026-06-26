@@ -51,7 +51,6 @@ const fakeProfile = {
   updated_at: "2026-01-01T00:00:00Z",
   tags: [],
   status: "stopped" as const,
-  vnc_ws_port: null,
   cdp_url: null,
 };
 

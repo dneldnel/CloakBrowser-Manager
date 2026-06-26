@@ -139,10 +139,6 @@ function AppContent({ authRequired, onLogout }: AppContentProps) {
     setView("edit");
   }, [selectedId, stop]);
 
-  const handleVncDisconnect = useCallback(() => {
-    setView("edit");
-  }, []);
-
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -245,10 +241,8 @@ function AppContent({ authRequired, onLogout }: AppContentProps) {
           {view === "view" && selected && selected.status === "running" && (
             <ProfileViewer
               key={selected.id}
-              profileId={selected.id}
               cdpUrl={selected.cdp_url}
-              clipboardSync={selected.clipboard_sync}
-              onDisconnect={handleVncDisconnect}
+              onStop={handleStop}
             />
           )}
         </div>

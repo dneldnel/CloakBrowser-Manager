@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import socket
 import time
 from dataclasses import dataclass
@@ -13,8 +12,6 @@ from pathlib import Path
 from typing import Any
 
 from cloakbrowser import launch_persistent_context_async
-
-from .vnc_manager import VNCManager
 
 logger = logging.getLogger("cloakbrowser.manager.browser")
 
@@ -51,6 +48,38 @@ def _validate_proxy(url: str) -> None:
         raise ValueError(f"Proxy URL missing hostname: {url}")
     if not parsed.port:
         raise ValueError(f"Proxy URL missing port: {url}")
+
+
+def _split_extension_launch_args(launch_args: list[str]) -> tuple[list[str], list[str]]:
+    args: list[str] = []
+    extension_paths: list[str] = []
+    for arg in launch_args:
+        if arg.startswith("--load-extension="):
+            value = arg.split("=", 1)[1]
+            if not value:
+                raise ValueError("--load-extension requires a path")
+            extension_paths.extend(p for p in value.split(",") if p)
+        elif arg == "--disable-extensions=false":
+            continue
+        else:
+            args.append(arg)
+    return args, extension_paths
+
+
+def _validate_extension_paths(extension_paths: list[str]) -> None:
+    for path in extension_paths:
+        ext_dir = Path(path)
+        if not ext_dir.is_dir():
+            raise ValueError(f"Extension path is not a directory: {path}")
+        if not (ext_dir / "manifest.json").is_file():
+            raise ValueError(f"Extension manifest not found: {path}/manifest.json")
+
+
+def _allow_chrome_extensions() -> None:
+    import cloakbrowser.browser as cloak_browser
+
+    if "--disable-extensions" not in cloak_browser.IGNORE_DEFAULT_ARGS:
+        cloak_browser.IGNORE_DEFAULT_ARGS.append("--disable-extensions")
 
 
 def _init_profile_defaults(user_data_dir: Path) -> None:
@@ -150,8 +179,6 @@ CDP_PORT_RANGE = 100  # cycle through 5100-5199 to avoid TIME_WAIT collisions
 class RunningProfile:
     profile_id: str
     context: Any  # Playwright BrowserContext
-    display: int
-    ws_port: int
     cdp_port: int
 
 
@@ -159,7 +186,6 @@ class BrowserManager:
     def __init__(self):
         self.running: dict[str, RunningProfile] = {}
         self._launching: set[str] = set()  # profile IDs currently being launched
-        self.vnc = VNCManager()
         self._lock = asyncio.Lock()
         self._next_cdp_port = BASE_CDP_PORT
         self._auto_launch_task: asyncio.Task | None = None
@@ -173,14 +199,11 @@ class BrowserManager:
                 raise RuntimeError(f"Profile {profile_id} is already running")
             self._launching.add(profile_id)
 
-        display, ws_port = await self.vnc.allocate()
-
         try:
             cdp_port = self._allocate_cdp_port()
         except ValueError:
             async with self._lock:
                 self._launching.discard(profile_id)
-            await self.vnc.stop_vnc(display)
             raise
 
         # Clean stale Chromium lock files (left by previous container crashes)
@@ -193,17 +216,13 @@ class BrowserManager:
         _init_profile_defaults(user_data_dir)
 
         try:
-            # Start KasmVNC on the allocated display
-            await self.vnc.start_vnc(
-                display,
-                ws_port,
-                width=profile.get("screen_width", 1920),
-                height=profile.get("screen_height", 1080),
-            )
-
             # Build fingerprint args from profile settings
             extra_args = self._build_fingerprint_args(profile)
-            extra_args += profile.get("launch_args") or []
+            launch_args, extension_paths = _split_extension_launch_args(profile.get("launch_args") or [])
+            if extension_paths:
+                _validate_extension_paths(extension_paths)
+                _allow_chrome_extensions()
+            extra_args += launch_args
             extra_args.append(f"--remote-debugging-port={cdp_port}")
 
             # Normalize proxy format (host:port:user:pass → http://user:pass@host:port)
@@ -212,8 +231,6 @@ class BrowserManager:
             if proxy:
                 _validate_proxy(proxy)
 
-            # Launch CloakBrowser on that display
-            # DISPLAY is passed via env kwarg to avoid process-wide os.environ mutation
             context = await launch_persistent_context_async(
                 user_data_dir=profile["user_data_dir"],
                 headless=bool(profile.get("headless", False)),
@@ -226,45 +243,20 @@ class BrowserManager:
                 geoip=bool(profile.get("geoip", False)),
                 color_scheme=profile.get("color_scheme") or None,
                 user_agent=profile.get("user_agent") or None,
+                extension_paths=extension_paths or None,
                 viewport={
                     "width": profile.get("screen_width", 1920),
-                    "height": profile.get("screen_height", 1080) - 133,
+                    "height": profile.get("screen_height", 1080),
                 },
-                env={**os.environ, "DISPLAY": f":{display}"},
             )
-
-            # Inject clipboard listener: captures copied text on every page
-            # so the GET /clipboard endpoint can read it via page.evaluate()
-            _clipboard_init_js = """
-                window.__clipboardText = '';
-                document.addEventListener('copy', () => {
-                    const sel = window.getSelection();
-                    if (sel) window.__clipboardText = sel.toString();
-                });
-                document.addEventListener('keydown', (e) => {
-                    if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !e.altKey && !e.shiftKey) {
-                        const sel = window.getSelection();
-                        if (sel && sel.toString()) window.__clipboardText = sel.toString();
-                    }
-                });
-            """
-            await context.add_init_script(_clipboard_init_js)
-            # Also inject into already-open pages (about:blank created before init_script)
-            for p in context.pages:
-                try:
-                    await p.evaluate(_clipboard_init_js)
-                except Exception as exc:
-                    logger.debug("Clipboard init failed on existing page: %s", exc)
 
             running = RunningProfile(
                 profile_id=profile_id,
                 context=context,
-                display=display,
-                ws_port=ws_port,
                 cdp_port=cdp_port,
             )
 
-            # Auto-cleanup if browser crashes or user closes Chrome via VNC
+            # Auto-cleanup if browser crashes or user closes the local Chrome window
             context.on("close", lambda: asyncio.ensure_future(
                 self._on_browser_closed(profile_id)
             ))
@@ -274,8 +266,8 @@ class BrowserManager:
                 self._launching.discard(profile_id)
 
             logger.info(
-                "Launched profile %s on display :%d (ws_port=%d, cdp_port=%d)",
-                profile_id, display, ws_port, cdp_port,
+                "Launched profile %s (cdp_port=%d)",
+                profile_id, cdp_port,
             )
 
             return running
@@ -283,17 +275,15 @@ class BrowserManager:
         except BaseException:
             async with self._lock:
                 self._launching.discard(profile_id)
-            await self.vnc.stop_vnc(display)
             raise
 
     async def _on_browser_closed(self, profile_id: str):
-        """Called when browser exits (crash, user closed via VNC, or stop())."""
+        """Called when browser exits (crash, user closed local window, or stop())."""
         async with self._lock:
             running = self.running.pop(profile_id, None)
 
         if running:
             logger.info("Browser closed for profile %s, cleaning up", profile_id)
-            await self.vnc.stop_vnc(running.display)
 
     async def stop(self, profile_id: str):
         """Stop a running browser instance."""
@@ -311,19 +301,15 @@ class BrowserManager:
         except Exception as exc:
             logger.warning("Error closing context for %s: %s", profile_id, exc)
 
-        await self.vnc.stop_vnc(running.display)
-
     def get_status(self, profile_id: str) -> dict[str, Any]:
         """Get running status for a profile."""
         running = self.running.get(profile_id)
         if running:
             return {
                 "status": "running",
-                "vnc_ws_port": running.ws_port,
-                "display": f":{running.display}",
                 "cdp_url": f"/api/profiles/{profile_id}/cdp",
             }
-        return {"status": "stopped", "vnc_ws_port": None, "display": None, "cdp_url": None}
+        return {"status": "stopped", "cdp_url": None}
 
     async def cleanup_all(self):
         """Stop all running profiles. Called on shutdown."""
@@ -333,11 +319,8 @@ class BrowserManager:
         for pid in profile_ids:
             await self.stop(pid)
 
-        await self.vnc.cleanup_all()
-
     async def cleanup_stale(self):
-        """Kill orphan processes from previous container runs."""
-        await self.vnc.cleanup_stale()
+        """No stale display server cleanup is needed in local-window mode."""
 
     async def auto_launch_all(self):
         """Launch all profiles with auto_launch=True. Called on startup."""
@@ -381,7 +364,6 @@ class BrowserManager:
         args: list[str] = [
             "--disable-infobars",
             "--test-type",  # suppress "unsupported flag: --no-sandbox" bad flags warning
-            "--use-angle=swiftshader",  # software GL for VNC (no GPU in container)
         ]
 
         seed = profile.get("fingerprint_seed")

@@ -30,7 +30,6 @@ export interface Profile {
   updated_at: string;
   tags: { tag: string; color: string | null }[];
   status: "running" | "stopped";
-  vnc_ws_port: number | null;
   cdp_url: string | null;
 }
 
@@ -62,8 +61,6 @@ export interface ProfileCreateData {
 export interface LaunchResult {
   profile_id: string;
   status: string;
-  vnc_ws_port: number;
-  display: string;
   cdp_url: string | null;
 }
 
@@ -147,12 +144,4 @@ export const api = {
 
   getStatus: () => request<SystemStatus>("/api/status"),
 
-  setClipboard: (id: string, text: string) =>
-    request<{ ok: boolean }>(`/api/profiles/${id}/clipboard`, {
-      method: "POST",
-      body: JSON.stringify({ text }),
-    }),
-
-  getClipboard: (id: string) =>
-    request<{ text: string }>(`/api/profiles/${id}/clipboard`),
 };

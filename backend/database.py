@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 import random
 import sqlite3
 import uuid
@@ -11,7 +12,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-DATA_DIR = Path("/data")
+DATA_DIR = Path(os.environ.get("DATA_DIR", "~/.cloakbrowser-manager")).expanduser()
 DB_PATH = DATA_DIR / "profiles.db"
 
 

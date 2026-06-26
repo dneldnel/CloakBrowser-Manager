@@ -4,7 +4,6 @@ import pytest
 from pydantic import ValidationError
 
 from backend.models import (
-    ClipboardRequest,
     LaunchResponse,
     ProfileCreate,
     ProfileResponse,
@@ -125,37 +124,18 @@ def test_tag_create_with_color():
     assert t.color == "#00ff00"
 
 
-# ── ClipboardRequest ─────────────────────────────────────────────────────────
-
-
-def test_clipboard_request_valid():
-    c = ClipboardRequest(text="hello world")
-    assert c.text == "hello world"
-
-
-def test_clipboard_request_max_length():
-    with pytest.raises(ValidationError):
-        ClipboardRequest(text="x" * 1_048_577)
-
-
-def test_clipboard_request_at_limit():
-    c = ClipboardRequest(text="x" * 1_048_576)
-    assert len(c.text) == 1_048_576
-
-
 # ── LaunchResponse ──────────────────────────────────────────────────────────
 
 
 def test_launch_response_with_cdp_url():
     r = LaunchResponse(
-        profile_id="abc", vnc_ws_port=6100, display=":100",
-        cdp_url="/api/profiles/abc/cdp",
+        profile_id="abc", cdp_url="/api/profiles/abc/cdp",
     )
     assert r.cdp_url == "/api/profiles/abc/cdp"
 
 
 def test_launch_response_cdp_url_default_none():
-    r = LaunchResponse(profile_id="abc", vnc_ws_port=6100, display=":100")
+    r = LaunchResponse(profile_id="abc")
     assert r.cdp_url is None
 
 
@@ -164,8 +144,7 @@ def test_launch_response_cdp_url_default_none():
 
 def test_profile_status_response_cdp_url():
     r = ProfileStatusResponse(
-        status="running", vnc_ws_port=6100, display=":100",
-        cdp_url="/api/profiles/abc/cdp",
+        status="running", cdp_url="/api/profiles/abc/cdp",
     )
     assert r.cdp_url == "/api/profiles/abc/cdp"
 

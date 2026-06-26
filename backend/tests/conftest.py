@@ -50,10 +50,9 @@ def app_client(tmp_db: Path, monkeypatch: pytest.MonkeyPatch):
     """FastAPI TestClient with mocked DB and browser manager."""
     from backend import main
 
-    # Patch lifespan-called methods to avoid subprocess calls (pkill, Xvnc)
+    # Patch lifespan-called methods to avoid launching real browsers.
     monkeypatch.setattr(main.browser_mgr, "cleanup_stale", AsyncMock())
     monkeypatch.setattr(main.browser_mgr, "cleanup_all", AsyncMock())
-    monkeypatch.setattr(main.browser_mgr.vnc, "cleanup_stale", AsyncMock())
 
     from starlette.testclient import TestClient
 

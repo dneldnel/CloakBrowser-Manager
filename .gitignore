@@ -11,6 +11,8 @@ frontend/dist/
 # Local runtime data
 data/
 cloakbrowser-manager-data/
+cloakbrowser-cache/
+tmp/
 
 # IDE
 .vscode/

@@ -9,4 +9,4 @@ export TMPDIR="$PWD/tmp"
 mkdir -p "$DATA_DIR" "$CLOAKBROWSER_CACHE_DIR" "$TMPDIR"
 
 source .venv/bin/activate
-exec uvicorn backend.main:app --reload --port 80
+exec uvicorn backend.main:app --reload --port 8080

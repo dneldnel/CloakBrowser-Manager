@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -52,6 +53,39 @@ def test_create_profile_with_all_fields(app_client: TestClient):
 def test_create_profile_invalid_platform(app_client: TestClient):
     resp = app_client.post("/api/profiles", json={"name": "Bad", "platform": "android"})
     assert resp.status_code == 422
+
+
+def test_copy_profile(app_client: TestClient):
+    create = app_client.post("/api/profiles", json={
+        "name": "Original",
+        "platform": "macos",
+        "proxy": "http://host:8080",
+        "tags": [{"tag": "work", "color": "#ff0000"}],
+    })
+    source = create.json()
+    source_dir = Path(source["user_data_dir"])
+    source_dir.mkdir(parents=True)
+    (source_dir / "state.txt").write_text("session")
+
+    resp = app_client.post(f"/api/profiles/{source['id']}/copy")
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["id"] != source["id"]
+    assert data["name"] == "Original Copy"
+    assert data["platform"] == "macos"
+    assert data["proxy"] == "http://host:8080"
+    assert data["tags"] == [{"tag": "work", "color": "#ff0000"}]
+    assert Path(data["user_data_dir"], "state.txt").read_text() == "session"
+
+
+def test_copy_profile_running_conflict(app_client: TestClient):
+    create = app_client.post("/api/profiles", json={"name": "Running"})
+    pid = create.json()["id"]
+    main.browser_mgr.running[pid] = MagicMock(spec=RunningProfile)
+    resp = app_client.post(f"/api/profiles/{pid}/copy")
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Stop profile before copying"
+    main.browser_mgr.running.pop(pid, None)
 
 
 def test_get_profile(app_client: TestClient):

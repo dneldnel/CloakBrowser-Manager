@@ -89,7 +89,7 @@ interface AppContentProps {
 }
 
 function AppContent({ authRequired, onLogout }: AppContentProps) {
-  const { profiles, loading, error, create, update, remove, launch, stop } = useProfiles();
+  const { profiles, loading, error, create, update, copy, remove, launch, stop } = useProfiles();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [view, setView] = useState<View>("empty");
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -114,6 +114,14 @@ function AppContent({ authRequired, onLogout }: AppContentProps) {
       setView("edit");
     }
   }, [create]);
+
+  const handleCopy = useCallback(async (id: string) => {
+    const profile = await copy(id);
+    if (profile) {
+      setSelectedId(profile.id);
+      setView("edit");
+    }
+  }, [copy]);
 
   const handleUpdate = useCallback(async (data: ProfileCreateData) => {
     if (!selectedId) return;
@@ -156,6 +164,7 @@ function AppContent({ authRequired, onLogout }: AppContentProps) {
             profiles={profiles}
             selectedId={selectedId}
             onSelect={handleSelect}
+            onCopy={handleCopy}
             onNew={handleNew}
           />
         </div>

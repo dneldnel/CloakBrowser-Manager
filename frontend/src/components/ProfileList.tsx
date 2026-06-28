@@ -1,4 +1,4 @@
-import { Plus, Search, Monitor } from "lucide-react";
+import { Copy, Plus, Search, Monitor } from "lucide-react";
 import { useState } from "react";
 import type { Profile } from "../lib/api";
 import { StatusIndicator } from "./StatusIndicator";
@@ -7,11 +7,13 @@ interface ProfileListProps {
   profiles: Profile[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onCopy: (id: string) => void;
   onNew: () => void;
 }
 
-export function ProfileList({ profiles, selectedId, onSelect, onNew }: ProfileListProps) {
+export function ProfileList({ profiles, selectedId, onSelect, onCopy, onNew }: ProfileListProps) {
   const [search, setSearch] = useState("");
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
 
   const filtered = profiles.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase()),
@@ -46,7 +48,7 @@ export function ProfileList({ profiles, selectedId, onSelect, onNew }: ProfileLi
       </div>
 
       {/* Profile list */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto p-2" onClick={() => setMenu(null)}>
         {filtered.length === 0 && (
           <div className="text-center text-gray-500 text-xs py-8">
             {profiles.length === 0 ? "No profiles yet" : "No matches"}
@@ -56,6 +58,10 @@ export function ProfileList({ profiles, selectedId, onSelect, onNew }: ProfileLi
           <button
             key={profile.id}
             onClick={() => onSelect(profile.id)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenu({ id: profile.id, x: e.clientX, y: e.clientY });
+            }}
             className={`w-full text-left px-3 py-2.5 rounded-md mb-1 transition-colors ${
               selectedId === profile.id
                 ? "bg-surface-3 border border-border-hover"
@@ -90,6 +96,24 @@ export function ProfileList({ profiles, selectedId, onSelect, onNew }: ProfileLi
             )}
           </button>
         ))}
+        {menu && (
+          <div
+            className="fixed z-50 min-w-32 rounded-md border border-border bg-surface-2 py-1 shadow-lg"
+            style={{ left: menu.x, top: menu.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-200 hover:bg-surface-3"
+              onClick={() => {
+                onCopy(menu.id);
+                setMenu(null);
+              }}
+            >
+              <Copy className="h-3.5 w-3.5" />
+              <span>Copy</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* New profile button */}

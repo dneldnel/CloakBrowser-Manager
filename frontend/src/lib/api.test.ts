@@ -46,6 +46,19 @@ describe("api.createProfile", () => {
   });
 });
 
+// ── copyProfile ─────────────────────────────────────────────────────────────
+
+describe("api.copyProfile", () => {
+  it("sends POST to copy endpoint", async () => {
+    const profile = { id: "2", name: "Copied" };
+    mockFetch.mockResolvedValueOnce(jsonResponse(profile));
+    await api.copyProfile("1");
+    const [url, options] = mockFetch.mock.calls[0];
+    expect(url).toBe("/api/profiles/1/copy");
+    expect(options.method).toBe("POST");
+  });
+});
+
 // ── updateProfile ───────────────────────────────────────────────────────────
 
 describe("api.updateProfile", () => {

@@ -270,6 +270,45 @@ async def create_profile(req: ProfileCreate):
     return ProfileResponse(**profile)
 
 
+@app.post("/api/profiles/{profile_id}/copy", response_model=ProfileResponse, status_code=201)
+async def copy_profile(profile_id: str):
+    source = db.get_profile(profile_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    if profile_id in browser_mgr.running:
+        raise HTTPException(status_code=409, detail="Stop profile before copying")
+
+    fields = {
+        key: source[key]
+        for key in (
+            "fingerprint_seed", "proxy", "timezone", "locale", "platform",
+            "user_agent", "screen_width", "screen_height", "gpu_vendor", "gpu_renderer",
+            "hardware_concurrency", "humanize", "human_preset", "headless", "geoip",
+            "clipboard_sync", "auto_launch", "color_scheme", "launch_args", "notes",
+        )
+    }
+    fields["tags"] = source.get("tags", [])
+    profile = db.create_profile(name=f"{source['name']} Copy", **fields)
+
+    source_dir = Path(source["user_data_dir"])
+    target_dir = Path(profile["user_data_dir"])
+    try:
+        if source_dir.exists():
+            target_dir.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(source_dir, target_dir)
+    except OSError as exc:
+        db.delete_profile(profile["id"])
+        if target_dir.exists():
+            shutil.rmtree(target_dir, ignore_errors=True)
+        raise HTTPException(status_code=500, detail=f"Failed to copy profile data: {exc}") from exc
+
+    status = browser_mgr.get_status(profile["id"])
+    profile["status"] = status["status"]
+    profile["cdp_url"] = status["cdp_url"]
+    profile["tags"] = [TagResponse(**t) for t in profile.get("tags", [])]
+    return ProfileResponse(**profile)
+
+
 @app.get("/api/profiles/{profile_id}", response_model=ProfileResponse)
 async def get_profile(profile_id: str):
     profile = db.get_profile(profile_id)

@@ -7,6 +7,7 @@ vi.mock("../lib/api", () => ({
   api: {
     listProfiles: vi.fn(),
     createProfile: vi.fn(),
+    copyProfile: vi.fn(),
     updateProfile: vi.fn(),
     deleteProfile: vi.fn(),
     launchProfile: vi.fn(),
@@ -19,6 +20,7 @@ import { api } from "../lib/api";
 const mockApi = api as {
   listProfiles: ReturnType<typeof vi.fn>;
   createProfile: ReturnType<typeof vi.fn>;
+  copyProfile: ReturnType<typeof vi.fn>;
   updateProfile: ReturnType<typeof vi.fn>;
   deleteProfile: ReturnType<typeof vi.fn>;
   launchProfile: ReturnType<typeof vi.fn>;
@@ -88,6 +90,20 @@ describe("useProfiles", () => {
     });
 
     expect(result.current.profiles[0].id).toBe("new-1");
+  });
+
+  it("copy prepends to list", async () => {
+    const copied = { ...fakeProfile, id: "copy-1", name: "Test Copy" };
+    mockApi.copyProfile.mockResolvedValue(copied);
+
+    const { result } = renderHook(() => useProfiles());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.copy("abc-123");
+    });
+
+    expect(result.current.profiles[0].id).toBe("copy-1");
   });
 
   it("update replaces in list", async () => {

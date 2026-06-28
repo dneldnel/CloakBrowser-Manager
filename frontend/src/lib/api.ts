@@ -127,6 +127,9 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  copyProfile: (id: string) =>
+    request<Profile>(`/api/profiles/${id}/copy`, { method: "POST" }),
+
   updateProfile: (id: string, data: Partial<ProfileCreateData>) =>
     request<Profile>(`/api/profiles/${id}`, {
       method: "PUT",

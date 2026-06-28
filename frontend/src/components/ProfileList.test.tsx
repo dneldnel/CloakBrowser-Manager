@@ -35,6 +35,20 @@ const profile: Profile = {
 };
 
 describe("ProfileList", () => {
+  it("shows profile notes in the sidebar", () => {
+    render(
+      <ProfileList
+        profiles={[{ ...profile, notes: "Customer account A" }]}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onCopy={vi.fn()}
+        onNew={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Customer account A")).not.toBeNull();
+  });
+
   it("copies a profile from the context menu", () => {
     const onCopy = vi.fn();
     render(

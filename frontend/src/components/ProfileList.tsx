@@ -81,6 +81,11 @@ export function ProfileList({ profiles, selectedId, onSelect, onCopy, onNew }: P
                 </>
               )}
             </div>
+            {profile.notes?.trim() && (
+              <div className="mt-1 ml-4 truncate text-[10px] text-gray-500">
+                {profile.notes}
+              </div>
+            )}
             {profile.tags.length > 0 && (
               <div className="flex gap-1 mt-1.5 ml-4 flex-wrap">
                 {profile.tags.map((t) => (

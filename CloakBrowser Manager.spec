@@ -52,5 +52,5 @@ app = BUNDLE(
     coll,
     name='CloakBrowser Manager.app',
     icon='assets/app-icon.icns',
-    bundle_identifier=None,
+    bundle_identifier='com.cloakhq.cloakbrowser-manager',
 )

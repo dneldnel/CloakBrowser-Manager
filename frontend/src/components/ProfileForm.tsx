@@ -525,21 +525,28 @@ export function ProfileForm({ profile, onSave, onDelete, onCancel }: ProfileForm
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Launch Args</h3>
           <p className="text-xs text-gray-500 mb-2">Custom Chromium flags passed at launch (e.g. --load-extension, --disable-features)</p>
           {(form.launch_args ?? []).length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-3">
+            <div className="space-y-2 mb-3">
               {(form.launch_args ?? []).map((arg, idx) => (
-                <span
+                <div
                   key={idx}
-                  className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-surface-3 text-gray-300 font-mono"
+                  className="flex items-start gap-2"
                 >
-                  {arg}
+                  <textarea
+                    readOnly
+                    value={arg}
+                    rows={2}
+                    className="input min-h-[54px] flex-1 resize-y font-mono text-xs select-text"
+                    aria-label={`Launch argument ${idx + 1}`}
+                  />
                   <button
                     type="button"
                     onClick={() => removeLaunchArg(idx)}
-                    className="hover:opacity-70"
+                    className="btn-secondary h-9 px-2"
+                    aria-label={`Remove launch argument ${idx + 1}`}
                   >
                     <X className="h-3 w-3" />
                   </button>
-                </span>
+                </div>
               ))}
             </div>
           )}

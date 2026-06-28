@@ -1,0 +1,7 @@
+{
+  "data_dir": "data",
+  "cache_dir": "cloakbrowser-cache",
+  "tmp_dir": "tmp",
+  "binary_path": "",
+  "host": "127.0.0.1"
+}

@@ -13,6 +13,11 @@ data/
 cloakbrowser-manager-data/
 cloakbrowser-cache/
 tmp/
+logs/
+
+# Desktop app build outputs
+build/
+dist/
 
 # IDE
 .vscode/

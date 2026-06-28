@@ -175,14 +175,15 @@ class AuthMiddleware:
 browser_mgr = BrowserManager()
 
 # Frontend build directory (React production build)
-FRONTEND_DIR = Path(__file__).parent.parent / "frontend" / "dist"
+FRONTEND_DIR = Path(os.environ.get("FRONTEND_DIR") or Path(__file__).parent.parent / "frontend" / "dist")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
     await browser_mgr.cleanup_stale()
-    browser_mgr._auto_launch_task = asyncio.create_task(browser_mgr.auto_launch_all())
+    if os.environ.get("DISABLE_PROFILE_AUTO_LAUNCH") != "1":
+        browser_mgr._auto_launch_task = asyncio.create_task(browser_mgr.auto_launch_all())
     logger.info("CloakBrowser Manager started")
     yield
     logger.info("Shutting down — stopping all browsers...")
